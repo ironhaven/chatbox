@@ -11,5 +11,10 @@ client = genai.Client(api_key=api_key)
 output = client.models.generate_content(model="gemini-2.5-flash",
                                         contents="Why is Boot.dev such a great place to learn backend development? Use one paragraph maximum.")
 
-
+metadata = output.usage_metadata
+prompt_tokens = metadata.prompt_token_count
+resp_tokens = metadata.candidates_token_count
+print("Prompt tokens:", prompt_tokens)
+print("Response tokens:", resp_tokens)
+print("Response:")
 print(output.text)
