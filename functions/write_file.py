@@ -1,7 +1,19 @@
 import os
-
-from config import MAX_CHARS
-
+from google.genai import types
+schema_write_file = types.FunctionDeclaration(
+    name="write_file",
+    description="Write content text to a file from a relative path. Overwrites file if exists. Creates parent directoy if not exists",
+    parameters=types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "file_path": types.Schema(
+                type=types.Type.STRING,
+                description="Directory path for file to write content into, relative to the working directory",
+            ),
+        },
+        required=["file_path"]
+    ),
+)
 def write_file(working_directory, file_path, content):
     working_dir_abs = os.path.abspath(working_directory)
     target_file = os.path.normpath(os.path.join(working_dir_abs, file_path))
