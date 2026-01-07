@@ -6,7 +6,7 @@ from google.genai import types
 
 from config import system_prompt
 
-from functions import get_files_info, write_file, get_file_content, run_python_file
+from functions import get_files_info, write_file, get_file_content, run_python_file, call_function
 
 
 load_dotenv()
@@ -20,7 +20,6 @@ parser.add_argument("--verbose", action="store_true", help="Enable verbose outpu
 args = parser.parse_args()
 
 client = genai.Client(api_key=api_key)
-
 available_functions = types.Tool(
     function_declarations=[get_files_info.schema_get_files_info,
                            get_file_content.schema_get_file_content,
@@ -29,27 +28,66 @@ available_functions = types.Tool(
 )
 
 
-messages = [types.Content(role="user", parts=[types.Part(text=args.user_prompt)])]
-output = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=args.user_prompt,
-        config=types.GenerateContentConfig(
-            system_instruction=system_prompt, tools=[available_functions]
-        )
-)
+def generate_content(client, messages, available_function):
+    output = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=messages,
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt, tools=[available_functions]
+            )
+            
+    )
+    metadata = output.usage_metadata
+    prompt_tokens = metadata.prompt_token_count
+    resp_tokens = metadata.candidates_token_count
 
-metadata = output.usage_metadata
-prompt_tokens = metadata.prompt_token_count
-resp_tokens = metadata.candidates_token_count
+    if args.verbose:
+        print("User prompt:", args.user_prompt)
+        print("Prompt tokens:", prompt_tokens)
+        print("Response tokens:", resp_tokens)
+
+    return output
+
+
+
+
+
+messages = []
+messages.append(types.Content(role="user", parts=[types.Part(text=args.user_prompt)]))
 if args.verbose:
     print("User prompt:", args.user_prompt)
-    print("Prompt tokens:", prompt_tokens)
-    print("Response tokens:", resp_tokens)
 
-if output.function_calls is not None:
-    print("function call:")
-    for function_call in output.function_calls:
-        print(f"Calling function: {function_call.name}({function_call.args})")
+
+# loop until you get a text response from llm
+for i in range(20):
+    if args.verbose:
+        print(f"loop {i}: {len(messages)}")
+    output = generate_content(client, messages, available_functions)
+    for candidate in output.candidates:
+        messages.append(candidate.content)
+
+    if output.function_calls:
+        print("function call:")
+        results = []
+        for function_call_n in output.function_calls:
+            call_result = call_function.call_function(function_call_n, args.verbose)
+            if not call_result.parts:
+                raise Exception("Empty Function call parts")
+            if call_result.parts[0].function_response is None:
+                raise Exception("None function_response")
+            if call_result.parts[0].function_response.response is None:
+                raise Exception("None function_response.response")
+            if args.verbose:
+                print(f"-> {call_result.parts[0].function_response.response}")
+            results.append(call_result.parts[0])
+
+        messages.append(types.Content(role="user", parts=results))
+
+
+    else:
+        print("text:")
+        print(output.text)
+        break
 else:
-    print("text:")
-    print(output.text)
+    print("Maximum loops reached")
+

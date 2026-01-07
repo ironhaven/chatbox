@@ -10,6 +10,10 @@ schema_write_file = types.FunctionDeclaration(
                 type=types.Type.STRING,
                 description="Directory path for file to write content into, relative to the working directory",
             ),
+            "content": types.Schema(
+                type=types.Type.STRING,
+                description="Content text to be overwritten into the file located at file_path"
+            )
         },
         required=["file_path"]
     ),
